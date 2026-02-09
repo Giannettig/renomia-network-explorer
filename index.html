@@ -1,0 +1,1466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RENOMIA Network Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5"></script>
+  <style>
+    :root {
+      --renomia-navy: #003865;
+      --renomia-dark: #012c4a;
+      --renomia-light-blue: #71c5e8;
+      --renomia-white: #ffffff;
+      --renomia-offwhite: #f5f5f5;
+      --renomia-gray: #535353;
+      --renomia-gray-light: #6f6f6f;
+      --renomia-border: #e0e0e0;
+      --renomia-border-light: #ebebeb;
+      --renomia-green: #2a9d6e;
+      --renomia-amber: #c78b00;
+      --renomia-rose: #c44b5c;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Raleway', Arial, Helvetica, sans-serif;
+      background: var(--renomia-offwhite);
+      color: var(--renomia-gray);
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      padding: 0 40px;
+      height: 72px;
+      background: var(--renomia-navy);
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .header-logo {
+      height: 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header-logo .r-icon {
+      width: 36px;
+      height: 36px;
+      background: #2255cc;
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 800;
+      font-size: 22px;
+      letter-spacing: -1px;
+    }
+    .header-logo .r-text {
+      color: var(--renomia-white);
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .header-divider {
+      width: 1px;
+      height: 28px;
+      background: rgba(255,255,255,0.2);
+      margin: 0 8px;
+    }
+    .header h1 {
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--renomia-light-blue);
+      letter-spacing: 0.5px;
+    }
+
+    /* Loading */
+    #loading {
+      position: fixed; inset: 0;
+      background: var(--renomia-white);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 999;
+    }
+    #loading .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid var(--renomia-border);
+      border-top-color: var(--renomia-navy);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    #loading p { margin-top: 16px; color: var(--renomia-gray-light); font-size: 14px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Search */
+    .search-area {
+      padding: 28px 40px 20px;
+      position: relative;
+      background: var(--renomia-white);
+      border-bottom: 1px solid var(--renomia-border-light);
+    }
+    .search-area input {
+      width: 100%;
+      max-width: 520px;
+      padding: 12px 18px 12px 44px;
+      background: var(--renomia-offwhite);
+      border: 1px solid var(--renomia-border);
+      border-radius: 6px;
+      color: var(--renomia-gray);
+      font-family: 'Raleway', Arial, sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .search-area input:focus {
+      border-color: var(--renomia-navy);
+      box-shadow: 0 0 0 3px rgba(0,56,101,0.08);
+    }
+    .search-area input::placeholder { color: #aaa; font-weight: 400; }
+    .search-icon {
+      position: absolute;
+      top: 40px;
+      left: 56px;
+      width: 16px;
+      height: 16px;
+      color: #aaa;
+    }
+
+    .autocomplete {
+      position: absolute;
+      top: 80px;
+      left: 40px;
+      width: calc(100% - 80px);
+      max-width: 520px;
+      background: var(--renomia-white);
+      border: 1px solid var(--renomia-border);
+      border-radius: 6px;
+      max-height: 300px;
+      overflow-y: auto;
+      display: none;
+      z-index: 10;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    }
+    .autocomplete.show { display: block; }
+    .autocomplete-item {
+      padding: 10px 16px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--renomia-gray);
+      transition: background 0.1s;
+    }
+    .autocomplete-item:hover, .autocomplete-item.active {
+      background: var(--renomia-offwhite);
+    }
+    .autocomplete-item .count {
+      color: var(--renomia-gray-light);
+      font-size: 11px;
+      font-weight: 400;
+      background: var(--renomia-offwhite);
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    /* Splash */
+    #splash {
+      padding: 28px 40px 40px;
+    }
+    .splash-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .splash-card {
+      background: var(--renomia-white);
+      border: 1px solid var(--renomia-border-light);
+      border-radius: 8px;
+      padding: 24px 24px 20px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .splash-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+    }
+    .splash-card:nth-child(1)::before { background: var(--renomia-navy); }
+    .splash-card:nth-child(2)::before { background: var(--renomia-amber); }
+    .splash-card:nth-child(3)::before { background: var(--renomia-green); }
+    .splash-card:nth-child(4)::before { background: var(--renomia-rose); }
+    .splash-card .splash-icon {
+      position: absolute;
+      top: 18px;
+      right: 20px;
+      font-size: 28px;
+      opacity: 0.10;
+    }
+    .splash-card .splash-label {
+      font-size: 10px;
+      color: var(--renomia-gray-light);
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .splash-card .splash-value {
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: -1px;
+    }
+    .splash-card .splash-sub {
+      font-size: 11px;
+      color: var(--renomia-gray-light);
+      margin-top: 6px;
+      font-weight: 400;
+    }
+    .splash-value.c-accent { color: var(--renomia-navy); }
+    .splash-value.c-green { color: var(--renomia-green); }
+    .splash-value.c-amber { color: var(--renomia-amber); }
+    .splash-value.c-rose { color: var(--renomia-rose); }
+
+    /* Consultants breakdown */
+    .consultants-card {
+      background: var(--renomia-white);
+      border: 1px solid var(--renomia-border-light);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .consultants-header {
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s;
+    }
+    .consultants-header:hover { background: var(--renomia-offwhite); }
+    .consultants-header .ch-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .consultants-header .ch-label {
+      font-size: 11px;
+      color: var(--renomia-gray-light);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-weight: 600;
+    }
+    .consultants-chevron {
+      color: var(--renomia-gray-light);
+      font-size: 14px;
+      transition: transform 0.25s;
+    }
+    .consultants-chevron.open { transform: rotate(180deg); }
+    .consultants-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.35s ease;
+    }
+    .consultants-body.open { max-height: 600px; }
+    .consultant-row {
+      display: grid;
+      grid-template-columns: 1fr repeat(3, auto);
+      gap: 24px;
+      align-items: center;
+      padding: 12px 24px;
+      border-top: 1px solid var(--renomia-border-light);
+      font-size: 13px;
+    }
+    .consultant-row .cr-name { font-weight: 600; color: var(--renomia-dark); }
+    .consultant-row .cr-stat {
+      text-align: right;
+      min-width: 80px;
+    }
+    .consultant-row .cr-stat-val {
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--renomia-navy);
+    }
+    .consultants-table-header {
+      display: grid;
+      grid-template-columns: 1fr repeat(3, auto);
+      gap: 24px;
+      padding: 8px 24px;
+      border-top: 1px solid var(--renomia-border-light);
+      font-size: 10px;
+      color: var(--renomia-gray-light);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-weight: 600;
+    }
+    .consultants-table-header span:not(:first-child) {
+      text-align: right;
+      min-width: 80px;
+    }
+
+    /* Dashboard */
+    #dashboard { display: none; padding: 0 40px 40px; }
+    .company-name {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: var(--renomia-dark);
+    }
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--renomia-white);
+      border: 1px solid var(--renomia-border-light);
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .stat-card .label {
+      font-size: 10px;
+      color: var(--renomia-gray-light);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .stat-card .value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--renomia-dark);
+    }
+    .stat-card .value.accent { color: var(--renomia-navy); }
+    .stat-card .value.green { color: var(--renomia-green); }
+
+    .chart-container {
+      background: var(--renomia-white);
+      border: 1px solid var(--renomia-border-light);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 24px;
+      max-height: 320px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .chart-container canvas { max-height: 260px; }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: var(--renomia-gray-light);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Contacts table */
+    .contacts-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--renomia-white);
+      border: 1px solid var(--renomia-border-light);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .contacts-table th {
+      text-align: left;
+      padding: 12px 16px;
+      font-size: 10px;
+      color: var(--renomia-gray-light);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-weight: 700;
+      border-bottom: 2px solid var(--renomia-navy);
+      background: var(--renomia-offwhite);
+    }
+    .contacts-table td {
+      padding: 12px 16px;
+      font-size: 13px;
+      border-bottom: 1px solid var(--renomia-border-light);
+    }
+    .contacts-table tr:last-child td { border-bottom: none; }
+    .contacts-table tbody tr {
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .contacts-table tbody tr:hover { background: #f0f7fb; }
+    .contact-name { font-weight: 600; color: var(--renomia-dark); }
+    .contact-position { color: var(--renomia-gray-light); }
+
+    /* Message history modal */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(1,44,74,0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      backdrop-filter: blur(2px);
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: var(--renomia-white);
+      border: 1px solid var(--renomia-border);
+      border-radius: 8px;
+      width: 90%;
+      max-width: 700px;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    }
+    .modal-header {
+      padding: 20px 24px;
+      border-bottom: 2px solid var(--renomia-navy);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-header h2 {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--renomia-dark);
+    }
+    .modal-close {
+      background: none; border: none;
+      color: var(--renomia-gray-light); font-size: 22px;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+    .modal-close:hover { color: var(--renomia-dark); }
+    .modal-body {
+      padding: 20px 24px;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .message-item {
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--renomia-border-light);
+    }
+    .message-item:last-child { border-bottom: none; }
+    .message-meta {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+      font-size: 11px;
+    }
+    .message-from { color: var(--renomia-navy); font-weight: 600; }
+    .message-date { color: var(--renomia-gray-light); }
+    .message-content {
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--renomia-gray);
+      word-break: break-word;
+    }
+    .message-direction {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 3px;
+      margin-left: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .msg-sent { background: rgba(0,56,101,0.08); color: var(--renomia-navy); }
+    .msg-received { background: rgba(42,157,110,0.08); color: var(--renomia-green); }
+    .no-messages {
+      color: var(--renomia-gray-light);
+      font-style: italic;
+      padding: 20px 0;
+      text-align: center;
+      font-size: 13px;
+    }
+
+    /* Back button */
+    .back-btn {
+      background: var(--renomia-white);
+      border: 1px solid var(--renomia-border);
+      color: var(--renomia-navy);
+      padding: 7px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: 'Raleway', Arial, sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      transition: all 0.15s;
+      letter-spacing: 0.3px;
+    }
+    .back-btn:hover {
+      background: var(--renomia-navy);
+      color: var(--renomia-white);
+      border-color: var(--renomia-navy);
+    }
+
+    /* Company Info Panel */
+    #companyInfo {
+      display: none;
+      background: var(--renomia-white);
+      border: 1px solid var(--renomia-border-light);
+      border-radius: 8px;
+      margin-bottom: 24px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .ci-header {
+      background: var(--renomia-navy);
+      padding: 18px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    .ci-header-left { flex: 1; }
+    .ci-title {
+      font-size: 11px;
+      color: var(--renomia-light-blue);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .ci-company-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--renomia-white);
+    }
+    .ci-meta {
+      font-size: 11px;
+      color: rgba(255,255,255,0.6);
+      margin-top: 4px;
+    }
+    .ci-meta span { margin-right: 16px; }
+    .ci-bizmachine {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 5px;
+      color: var(--renomia-white);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: 'Raleway', Arial, sans-serif;
+      transition: background 0.15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .ci-bizmachine:hover { background: rgba(255,255,255,0.22); }
+    .ci-bizmachine svg { width: 14px; height: 14px; }
+
+    .ci-body { padding: 20px 24px; }
+    .ci-metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .ci-metric .ci-metric-label {
+      font-size: 9px;
+      color: var(--renomia-gray-light);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-weight: 700;
+      margin-bottom: 3px;
+    }
+    .ci-metric .ci-metric-val {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--renomia-dark);
+    }
+    .ci-indicator {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 3px;
+    }
+    .ci-ind-green { background: rgba(42,157,110,0.1); color: var(--renomia-green); }
+    .ci-ind-amber { background: rgba(199,139,0,0.1); color: var(--renomia-amber); }
+    .ci-ind-red { background: rgba(196,75,92,0.1); color: var(--renomia-rose); }
+    .ci-ind-blue { background: rgba(0,56,101,0.08); color: var(--renomia-navy); }
+
+    .ci-details {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--renomia-border-light);
+    }
+    .ci-detail-group { flex: 1; min-width: 200px; }
+    .ci-detail-group .ci-dg-title {
+      font-size: 9px;
+      color: var(--renomia-gray-light);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .ci-detail-group .ci-dg-value {
+      font-size: 13px;
+      color: var(--renomia-gray);
+      line-height: 1.5;
+    }
+    .ci-contact-links {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+    .ci-contact-links a {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--renomia-navy);
+      text-decoration: none;
+      padding: 3px 10px;
+      border: 1px solid var(--renomia-border);
+      border-radius: 4px;
+      font-weight: 500;
+      transition: all 0.12s;
+    }
+    .ci-contact-links a:hover {
+      background: var(--renomia-navy);
+      color: var(--renomia-white);
+      border-color: var(--renomia-navy);
+    }
+
+    /* Target companies in splash */
+    .target-companies {
+      margin-top: 24px;
+    }
+    .target-companies .tc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .target-companies .tc-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--renomia-gray-light);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .tc-search {
+      padding: 6px 12px;
+      border: 1px solid var(--renomia-border);
+      border-radius: 4px;
+      font-family: 'Raleway', Arial, sans-serif;
+      font-size: 12px;
+      color: var(--renomia-gray);
+      outline: none;
+      width: 220px;
+      background: var(--renomia-white);
+    }
+    .tc-search:focus { border-color: var(--renomia-navy); }
+    .tc-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+    .tc-card {
+      background: var(--renomia-white);
+      border: 1px solid var(--renomia-border-light);
+      border-radius: 8px;
+      padding: 16px 18px;
+      cursor: pointer;
+      transition: all 0.15s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .tc-card:hover {
+      border-color: var(--renomia-navy);
+      box-shadow: 0 2px 8px rgba(0,56,101,0.1);
+    }
+    .tc-card-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--renomia-dark);
+      line-height: 1.3;
+    }
+    .tc-card-meta {
+      font-size: 11px;
+      color: var(--renomia-gray-light);
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .tc-card-meta span {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .tc-card-industry {
+      font-size: 10px;
+      color: var(--renomia-navy);
+      background: rgba(0,56,101,0.06);
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-weight: 500;
+      align-self: flex-start;
+    }
+    .tc-contacts-badge {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--renomia-green);
+      background: rgba(42,157,110,0.08);
+      padding: 2px 7px;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <p>Loading network data...</p>
+</div>
+
+<div class="header">
+  <div class="header-logo">
+    <div class="r-icon">R</div>
+    <span class="r-text">Renomia</span>
+  </div>
+  <div class="header-divider"></div>
+  <h1>Network Explorer</h1>
+</div>
+
+<div class="search-area">
+  <svg class="search-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
+  <input type="text" id="searchInput" placeholder="Search for a company..." autocomplete="off">
+  <div class="autocomplete" id="autocomplete"></div>
+</div>
+
+<div id="splash">
+  <div class="splash-stats">
+    <div class="splash-card">
+      <div class="splash-icon">&#128101;</div>
+      <div class="splash-label">Consultants</div>
+      <div class="splash-value c-accent" id="splashConsultants">0</div>
+      <div class="splash-sub">LinkedIn data uploaded</div>
+    </div>
+    <div class="splash-card">
+      <div class="splash-icon">&#127970;</div>
+      <div class="splash-label">Companies</div>
+      <div class="splash-value c-amber" id="splashCompanies">0</div>
+      <div class="splash-sub">Unique companies in network</div>
+    </div>
+    <div class="splash-card">
+      <div class="splash-icon">&#128100;</div>
+      <div class="splash-label">Contacts</div>
+      <div class="splash-value c-green" id="splashContacts">0</div>
+      <div class="splash-sub">Total connections</div>
+    </div>
+    <div class="splash-card">
+      <div class="splash-icon">&#128172;</div>
+      <div class="splash-label">Messages</div>
+      <div class="splash-value c-rose" id="splashMessages">0</div>
+      <div class="splash-sub">Total messages exchanged</div>
+    </div>
+  </div>
+  <div class="consultants-card">
+    <div class="consultants-header" onclick="toggleConsultants()">
+      <div class="ch-left">
+        <span class="ch-label">Breakdown by consultant</span>
+      </div>
+      <span class="consultants-chevron" id="consultantsChevron">&#9660;</span>
+    </div>
+    <div class="consultants-body" id="consultantsBody">
+      <div class="consultants-table-header">
+        <span>Consultant</span>
+        <span>Companies</span>
+        <span>Contacts</span>
+        <span>Messages</span>
+      </div>
+      <div id="consultantsList"></div>
+    </div>
+  </div>
+
+  <div class="target-companies" id="targetCompaniesSection" style="display:none">
+    <div class="tc-header">
+      <span class="tc-title">Target Companies</span>
+      <input type="text" class="tc-search" id="tcSearch" placeholder="Filter companies..." autocomplete="off">
+    </div>
+    <div class="tc-grid" id="tcGrid"></div>
+  </div>
+</div>
+
+<div id="dashboard">
+  <button class="back-btn" onclick="goBack()">&larr; Back to search</button>
+
+  <div id="companyInfo">
+    <div class="ci-header">
+      <div class="ci-header-left">
+        <div class="ci-title">Company Intelligence</div>
+        <div class="ci-company-name" id="ciName"></div>
+        <div class="ci-meta" id="ciMeta"></div>
+      </div>
+      <a class="ci-bizmachine" id="ciLink" href="#" target="_blank">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/><path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/></svg>
+        BizMachine
+      </a>
+    </div>
+    <div class="ci-body">
+      <div class="ci-metrics" id="ciMetrics"></div>
+      <div class="ci-details" id="ciDetails"></div>
+    </div>
+  </div>
+
+  <div class="company-name" id="companyName"></div>
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="label">Contacts</div>
+      <div class="value accent" id="statContacts">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Total Messages</div>
+      <div class="value" id="statMessages">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Last Message</div>
+      <div class="value green" id="statLastMsg">N/A</div>
+    </div>
+  </div>
+  <div class="chart-container">
+    <canvas id="messagesChart"></canvas>
+  </div>
+  <div class="section-title">Contacts</div>
+  <table class="contacts-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Position</th>
+        <th>Connected On</th>
+      </tr>
+    </thead>
+    <tbody id="contactsBody"></tbody>
+  </table>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">Messages</h2>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+const MY_NAME = 'Giuliano Giannetti';
+let connections = [];
+let messages = [];
+let companyIndex = {};
+let contactMessages = {};
+let messagesChart = null;
+let targetCompanies = [];
+let targetIndex = {}; // lowercase name -> company object
+
+async function loadData() {
+  const [connResp, msgResp, compResp] = await Promise.all([
+    fetch('data/Connections.csv'),
+    fetch('data/messages.csv'),
+    fetch('data/companies.json').then(r => r.ok ? r.json() : []).catch(() => [])
+  ]);
+  const connText = await connResp.text();
+  const msgText = await msgResp.text();
+
+  // Store target companies
+  targetCompanies = compResp;
+  targetIndex = {};
+  targetCompanies.forEach(c => {
+    const name = (c['Název společnosti'] || '').trim().toLowerCase();
+    if (name) targetIndex[name] = c;
+  });
+
+  // Parse connections - skip preamble lines if present
+  const connLines = connText.split('\n');
+  let headerIdx = connLines.findIndex(l => l.startsWith('First Name,'));
+  if (headerIdx < 0) headerIdx = 0;
+  const connCsv = connLines.slice(headerIdx).join('\n');
+  const connParsed = Papa.parse(connCsv, { header: true, skipEmptyLines: true });
+  connections = connParsed.data.filter(r => r['First Name']);
+
+  // Normalize connection URLs: decode percent-encoded chars so they match message URLs
+  connections.forEach(c => {
+    if (c['URL']) {
+      try { c['URL'] = decodeURIComponent(c['URL'].trim()); } catch(e) { c['URL'] = c['URL'].trim(); }
+    }
+  });
+
+  const msgParsed = Papa.parse(msgText, { header: true, skipEmptyLines: true });
+  messages = msgParsed.data.filter(r => r['DATE']);
+
+  companyIndex = {};
+  connections.forEach((c, i) => {
+    const company = (c['Company'] || '').trim();
+    if (!company) return;
+    const key = company.toLowerCase();
+    if (!companyIndex[key]) companyIndex[key] = { name: company, indices: [] };
+    companyIndex[key].indices.push(i);
+  });
+
+  contactMessages = {};
+  messages.forEach(m => {
+    const fromUrl = (m['SENDER PROFILE URL'] || '').trim();
+    const toUrls = (m['RECIPIENT PROFILE URLS'] || '').split(',').map(u => u.trim()).filter(Boolean);
+    const allUrls = new Set([fromUrl, ...toUrls].filter(Boolean));
+    allUrls.forEach(url => {
+      if (!contactMessages[url]) contactMessages[url] = [];
+      contactMessages[url].push(m);
+    });
+  });
+
+  const consultantStats = buildConsultantStats();
+  renderSplash(consultantStats);
+  renderTargetCompanies();
+
+  document.getElementById('loading').style.display = 'none';
+}
+
+function renderTargetCompanies(filter) {
+  if (targetCompanies.length === 0) return;
+
+  const q = (filter || '').toLowerCase();
+
+  // Only show companies that have LinkedIn contacts, with contact count attached
+  let withContacts = targetCompanies
+    .map(c => {
+      const name = (c['Název společnosti'] || '').trim();
+      const key = name.toLowerCase();
+      const contactCount = companyIndex[key] ? companyIndex[key].indices.length : 0;
+      return { company: c, name, key, contactCount };
+    })
+    .filter(c => c.contactCount > 0);
+
+  // Apply text filter
+  if (q) {
+    withContacts = withContacts.filter(c => c.name.toLowerCase().includes(q));
+  }
+
+  // Sort by contact count descending
+  withContacts.sort((a, b) => b.contactCount - a.contactCount);
+
+  if (withContacts.length === 0) {
+    document.getElementById('targetCompaniesSection').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('targetCompaniesSection').style.display = 'block';
+
+  const grid = document.getElementById('tcGrid');
+  grid.innerHTML = withContacts.slice(0, 60).map(({ company: c, name, key, contactCount }) => {
+    const city = c['Město'] || '';
+    const employees = c['Počet zaměstnanců (kategorie)'] || '';
+    const industry = c['Kategorie odvětví (NACE)'] || '';
+    const revenue = c['Obratová kategorie'] || '';
+
+    return `<div class="tc-card" onclick="navigateToCompany('${key.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}')">
+      <div class="tc-card-name">${escapeHtml(name)} <span class="tc-contacts-badge">${contactCount} contact${contactCount > 1 ? 's' : ''}</span></div>
+      ${industry ? `<div class="tc-card-industry">${escapeHtml(industry)}</div>` : ''}
+      <div class="tc-card-meta">
+        ${city ? `<span>${escapeHtml(city)}</span>` : ''}
+        ${employees ? `<span>${escapeHtml(employees)}</span>` : ''}
+        ${revenue ? `<span>${escapeHtml(revenue)}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function navigateToCompany(key, name) {
+  searchInput.value = name;
+  // If we have linkedin contacts for this company, use existing flow
+  const entry = companyIndex[key];
+  if (entry) {
+    showDashboard(entry);
+  } else {
+    // No LinkedIn contacts but we have company data — show dashboard with zero contacts
+    showDashboard({ name: name, indices: [] });
+  }
+}
+
+function buildConsultantStats() {
+  const consultants = [];
+  const uniqueCompanies = new Set();
+  connections.forEach(c => {
+    const company = (c['Company'] || '').trim();
+    if (company) uniqueCompanies.add(company.toLowerCase());
+  });
+  consultants.push({
+    name: MY_NAME,
+    companies: uniqueCompanies.size,
+    contacts: connections.length,
+    messages: messages.length
+  });
+  return consultants;
+}
+
+function renderSplash(consultantStats) {
+  const totals = consultantStats.reduce((acc, c) => ({
+    companies: acc.companies + c.companies,
+    contacts: acc.contacts + c.contacts,
+    messages: acc.messages + c.messages,
+  }), { companies: 0, contacts: 0, messages: 0 });
+
+  function animateValue(el, end, duration) {
+    let start = 0;
+    const range = end - start;
+    const startTime = performance.now();
+    function step(now) {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - (1 - progress) * (1 - progress);
+      el.textContent = Math.floor(eased * range).toLocaleString();
+      if (progress < 1) requestAnimationFrame(step);
+      else el.textContent = end.toLocaleString();
+    }
+    requestAnimationFrame(step);
+  }
+
+  animateValue(document.getElementById('splashConsultants'), consultantStats.length, 600);
+  animateValue(document.getElementById('splashCompanies'), totals.companies, 900);
+  animateValue(document.getElementById('splashContacts'), totals.contacts, 1100);
+  animateValue(document.getElementById('splashMessages'), totals.messages, 1300);
+
+  const listEl = document.getElementById('consultantsList');
+  listEl.innerHTML = consultantStats.map(c => `
+    <div class="consultant-row">
+      <span class="cr-name">${escapeHtml(c.name)}</span>
+      <span class="cr-stat">
+        <div class="cr-stat-val">${c.companies.toLocaleString()}</div>
+      </span>
+      <span class="cr-stat">
+        <div class="cr-stat-val">${c.contacts.toLocaleString()}</div>
+      </span>
+      <span class="cr-stat">
+        <div class="cr-stat-val">${c.messages.toLocaleString()}</div>
+      </span>
+    </div>
+  `).join('');
+}
+
+function toggleConsultants() {
+  const body = document.getElementById('consultantsBody');
+  const chevron = document.getElementById('consultantsChevron');
+  body.classList.toggle('open');
+  chevron.classList.toggle('open');
+}
+
+// Target companies filter
+document.getElementById('tcSearch').addEventListener('input', e => {
+  renderTargetCompanies(e.target.value);
+});
+
+// Search & autocomplete
+const searchInput = document.getElementById('searchInput');
+const autocompleteEl = document.getElementById('autocomplete');
+let acItems = [];
+let acIndex = -1;
+
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.trim().toLowerCase();
+  if (q.length < 1) {
+    autocompleteEl.classList.remove('show');
+    return;
+  }
+  acItems = Object.entries(companyIndex)
+    .filter(([key]) => key.includes(q))
+    .sort((a, b) => b[1].indices.length - a[1].indices.length)
+    .slice(0, 20);
+  if (acItems.length === 0) {
+    autocompleteEl.classList.remove('show');
+    return;
+  }
+  acIndex = -1;
+  renderAutocomplete();
+  autocompleteEl.classList.add('show');
+});
+
+searchInput.addEventListener('keydown', e => {
+  if (!autocompleteEl.classList.contains('show')) return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    acIndex = Math.min(acIndex + 1, acItems.length - 1);
+    renderAutocomplete();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    acIndex = Math.max(acIndex - 1, 0);
+    renderAutocomplete();
+  } else if (e.key === 'Enter' && acIndex >= 0) {
+    e.preventDefault();
+    selectCompany(acItems[acIndex][0]);
+  }
+});
+
+function renderAutocomplete() {
+  autocompleteEl.innerHTML = acItems.map(([key, val], i) =>
+    `<div class="autocomplete-item${i === acIndex ? ' active' : ''}" onclick="selectCompany('${key.replace(/'/g, "\\'")}')">
+      <span>${val.name}</span>
+      <span class="count">${val.indices.length} contact${val.indices.length > 1 ? 's' : ''}</span>
+    </div>`
+  ).join('');
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search-area')) {
+    autocompleteEl.classList.remove('show');
+  }
+});
+
+function selectCompany(key) {
+  autocompleteEl.classList.remove('show');
+  const entry = companyIndex[key];
+  if (!entry) return;
+  searchInput.value = entry.name;
+  showDashboard(entry);
+}
+
+function getIndicatorClass(val) {
+  if (!val) return 'ci-ind-blue';
+  const v = val.toLowerCase();
+  if (v.includes('velmi vysoká') || v.includes('růst') || v.includes('vysoká')) return 'ci-ind-green';
+  if (v.includes('střední') || v.includes('stabilní') || v.includes('stagnace')) return 'ci-ind-amber';
+  if (v.includes('nízká') || v.includes('pokles') || v.includes('velmi nízká')) return 'ci-ind-red';
+  return 'ci-ind-blue';
+}
+
+function formatRevenue(val) {
+  if (!val && val !== 0) return null;
+  const num = typeof val === 'number' ? val : parseFloat(String(val).replace(/\s/g, ''));
+  if (isNaN(num)) return String(val);
+  if (num >= 1e9) return (num / 1e9).toFixed(1) + ' Mld';
+  if (num >= 1e6) return (num / 1e6).toFixed(0) + ' Mil';
+  if (num >= 1e3) return (num / 1e3).toFixed(0) + 'K';
+  return num.toLocaleString();
+}
+
+function renderCompanyInfo(companyName) {
+  const panel = document.getElementById('companyInfo');
+  const key = companyName.toLowerCase();
+  const company = targetIndex[key];
+
+  if (!company) {
+    panel.style.display = 'none';
+    return;
+  }
+
+  panel.style.display = 'block';
+
+  // Header
+  document.getElementById('ciName').textContent = company['Název společnosti'] || '';
+  const ico = company['IČ'] || '';
+  const legalForm = company['Právní forma'] || '';
+  const founded = company['Datum založení'] || '';
+  let metaHtml = '';
+  if (ico) metaHtml += `<span>IČ: ${escapeHtml(ico)}</span>`;
+  if (legalForm) metaHtml += `<span>${escapeHtml(legalForm)}</span>`;
+  if (founded) metaHtml += `<span>Zal. ${escapeHtml(String(founded).substring(0, 10))}</span>`;
+  document.getElementById('ciMeta').innerHTML = metaHtml;
+
+  // BizMachine link
+  const link = company['Odkaz na Prospector'] || '';
+  const linkEl = document.getElementById('ciLink');
+  if (link) {
+    linkEl.href = link;
+    linkEl.style.display = 'inline-flex';
+  } else {
+    linkEl.style.display = 'none';
+  }
+
+  // Metrics
+  const revenue = company['Obrat'];
+  const revenueCategory = company['Obratová kategorie'] || '';
+  const employees = company['Počet zaměstnanců (kategorie)'] || '';
+  const activity = company['Indikátor aktivity'] || '';
+  const growth = company['Indikátor růstu'] || '';
+  const assets = company['Celková aktiva'];
+  const vehicles = company['Aktuálně provozovaná vozidla'];
+
+  let metricsHtml = '';
+  if (revenue || revenueCategory) {
+    metricsHtml += `<div class="ci-metric"><div class="ci-metric-label">Revenue</div><div class="ci-metric-val">${revenue ? formatRevenue(revenue) + ' CZK' : escapeHtml(revenueCategory)}</div></div>`;
+  }
+  if (employees) {
+    metricsHtml += `<div class="ci-metric"><div class="ci-metric-label">Employees</div><div class="ci-metric-val">${escapeHtml(employees)}</div></div>`;
+  }
+  if (activity) {
+    metricsHtml += `<div class="ci-metric"><div class="ci-metric-label">Activity</div><div class="ci-metric-val"><span class="ci-indicator ${getIndicatorClass(activity)}">${escapeHtml(activity)}</span></div></div>`;
+  }
+  if (growth) {
+    metricsHtml += `<div class="ci-metric"><div class="ci-metric-label">Growth</div><div class="ci-metric-val"><span class="ci-indicator ${getIndicatorClass(growth)}">${escapeHtml(growth)}</span></div></div>`;
+  }
+  if (assets) {
+    metricsHtml += `<div class="ci-metric"><div class="ci-metric-label">Total Assets</div><div class="ci-metric-val">${formatRevenue(assets)} CZK</div></div>`;
+  }
+  if (vehicles) {
+    metricsHtml += `<div class="ci-metric"><div class="ci-metric-label">Vehicles</div><div class="ci-metric-val">${vehicles.toLocaleString()}</div></div>`;
+  }
+  document.getElementById('ciMetrics').innerHTML = metricsHtml;
+
+  // Details
+  const industry = company['Kategorie odvětví (NACE)'] || '';
+  const nace = company['Hlavní NACE obor podnikaní'] || '';
+  const ownDesc = company['Vlastní popis činnosti'] || '';
+  const address = company['Adresa sídla'] || '';
+  const city = company['Město'] || '';
+  const region = company['Kraj'] || '';
+  const website = company['Webová stránka'] || '';
+  const phone = company['Obecný telefon'] || '';
+  const email = company['Obecný email'] || '';
+  const fb = company['Facebook'] || '';
+  const li = company['LinkedIn'] || '';
+  const owners = company['Vlastníci'] || '';
+  const bank = company['Název banky'] || '';
+
+  let detailsHtml = '';
+
+  // Industry
+  if (industry || nace || ownDesc) {
+    let val = '';
+    if (industry) val += escapeHtml(industry);
+    if (nace) val += (val ? '<br>' : '') + escapeHtml(nace);
+    if (ownDesc) val += (val ? '<br><span style="color:#999;font-size:11px">' : '<span style="color:#999;font-size:11px">') + escapeHtml(ownDesc) + '</span>';
+    detailsHtml += `<div class="ci-detail-group"><div class="ci-dg-title">Industry</div><div class="ci-dg-value">${val}</div></div>`;
+  }
+
+  // Location
+  if (address || city) {
+    let loc = '';
+    if (address) loc = escapeHtml(address);
+    if (region && !address.includes(region)) loc += (loc ? ', ' : '') + escapeHtml(region);
+    detailsHtml += `<div class="ci-detail-group"><div class="ci-dg-title">Location</div><div class="ci-dg-value">${loc}</div></div>`;
+  }
+
+  // Contact
+  if (website || phone || email || fb || li) {
+    let linksHtml = '<div class="ci-contact-links">';
+    if (website) linksHtml += `<a href="${website.startsWith('http') ? website : 'https://' + website}" target="_blank">Web</a>`;
+    if (email) linksHtml += `<a href="mailto:${email}">${escapeHtml(email)}</a>`;
+    if (phone) linksHtml += `<a href="tel:${phone}">${escapeHtml(phone)}</a>`;
+    if (li) linksHtml += `<a href="${li}" target="_blank">LinkedIn</a>`;
+    if (fb) linksHtml += `<a href="${fb}" target="_blank">Facebook</a>`;
+    linksHtml += '</div>';
+    detailsHtml += `<div class="ci-detail-group"><div class="ci-dg-title">Contact</div><div class="ci-dg-value">${linksHtml}</div></div>`;
+  }
+
+  // Ownership
+  if (owners) {
+    detailsHtml += `<div class="ci-detail-group"><div class="ci-dg-title">Owners</div><div class="ci-dg-value" style="font-size:12px">${escapeHtml(owners)}</div></div>`;
+  }
+
+  document.getElementById('ciDetails').innerHTML = detailsHtml;
+}
+
+function showDashboard(entry) {
+  document.getElementById('splash').style.display = 'none';
+  const dash = document.getElementById('dashboard');
+  dash.style.display = 'block';
+
+  // Render company intelligence panel (only shows if data available)
+  renderCompanyInfo(entry.name);
+
+  document.getElementById('companyName').textContent = entry.name;
+  document.getElementById('statContacts').textContent = entry.indices.length;
+
+  const contacts = entry.indices.map(i => connections[i]);
+
+  const allMsgs = [];
+  const seen = new Set();
+  contacts.forEach(c => {
+    const url = (c['URL'] || '').trim();
+    const msgs = contactMessages[url] || [];
+    msgs.forEach(m => {
+      const mid = m['DATE'] + m['CONTENT'];
+      if (!seen.has(mid)) {
+        seen.add(mid);
+        allMsgs.push(m);
+      }
+    });
+  });
+
+  document.getElementById('statMessages').textContent = allMsgs.length;
+
+  let lastDate = 'N/A';
+  if (allMsgs.length > 0) {
+    const sorted = allMsgs.sort((a, b) => new Date(b['DATE']) - new Date(a['DATE']));
+    const d = new Date(sorted[0]['DATE']);
+    lastDate = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  document.getElementById('statLastMsg').textContent = lastDate;
+
+  const yearCounts = {};
+  allMsgs.forEach(m => {
+    const d = new Date(m['DATE']);
+    const y = d.getFullYear();
+    if (!isNaN(y)) yearCounts[y] = (yearCounts[y] || 0) + 1;
+  });
+
+  const years = Object.keys(yearCounts).sort();
+  const counts = years.map(y => yearCounts[y]);
+
+  if (messagesChart) messagesChart.destroy();
+  const ctx = document.getElementById('messagesChart').getContext('2d');
+  messagesChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: years,
+      datasets: [{
+        label: 'Messages',
+        data: counts,
+        backgroundColor: 'rgba(0, 56, 101, 0.7)',
+        borderColor: '#003865',
+        borderWidth: 1,
+        borderRadius: 3,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        title: {
+          display: true,
+          text: 'Messages per Year',
+          color: '#6f6f6f',
+          font: { family: 'Raleway', size: 12, weight: '600' },
+          align: 'start'
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(0,0,0,0.04)' },
+          ticks: { color: '#6f6f6f', font: { family: 'Raleway', size: 11 } }
+        },
+        y: {
+          grid: { color: 'rgba(0,0,0,0.04)' },
+          ticks: { color: '#6f6f6f', font: { family: 'Raleway', size: 11 } },
+          beginAtZero: true
+        }
+      }
+    }
+  });
+
+  const tbody = document.getElementById('contactsBody');
+  tbody.innerHTML = contacts.map(c => {
+    const name = `${c['First Name'] || ''} ${c['Last Name'] || ''}`.trim();
+    const pos = c['Position'] || '-';
+    const connDate = c['Connected On'] || '-';
+    const url = (c['URL'] || '').trim();
+    return `<tr onclick="showMessages('${url.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}')">
+      <td class="contact-name">${name}</td>
+      <td class="contact-position">${pos}</td>
+      <td>${connDate}</td>
+    </tr>`;
+  }).join('');
+}
+
+function showMessages(profileUrl, contactName) {
+  const overlay = document.getElementById('modalOverlay');
+  const title = document.getElementById('modalTitle');
+  const body = document.getElementById('modalBody');
+
+  title.textContent = `Messages with ${contactName}`;
+
+  const msgs = (contactMessages[profileUrl] || [])
+    .filter(m => m && m['DATE'])
+    .sort((a, b) => new Date(b['DATE']) - new Date(a['DATE']));
+
+  if (msgs.length === 0) {
+    body.innerHTML = '<div class="no-messages">No messages found with this contact.</div>';
+  } else {
+    const seen = new Set();
+    const unique = [];
+    msgs.forEach(m => {
+      const key = m['DATE'] + (m['CONTENT'] || '');
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(m);
+      }
+    });
+
+    body.innerHTML = unique.slice(0, 200).map(m => {
+      const from = (m['FROM'] || '').trim();
+      const date = new Date(m['DATE']);
+      const dateStr = date.toLocaleDateString('en-GB', {
+        day: 'numeric', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+      const content = (m['CONTENT'] || '').trim() || '<em>(no text content)</em>';
+      const isSent = from === MY_NAME;
+      const dirClass = isSent ? 'msg-sent' : 'msg-received';
+      const dirLabel = isSent ? 'Sent' : 'Received';
+
+      return `<div class="message-item">
+        <div class="message-meta">
+          <span>
+            <span class="message-from">${escapeHtml(from)}</span>
+            <span class="message-direction ${dirClass}">${dirLabel}</span>
+          </span>
+          <span class="message-date">${dateStr}</span>
+        </div>
+        <div class="message-content">${escapeHtml(content)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  overlay.classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+
+document.getElementById('modalOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+});
+
+function goBack() {
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('splash').style.display = 'block';
+  searchInput.value = '';
+  searchInput.focus();
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// Boot
+loadData().catch(err => {
+  document.getElementById('loading').innerHTML =
+    `<p style="color: #c44b5c;">Error loading data: ${err.message}</p>`;
+});
+</script>
+</body>
+</html>
